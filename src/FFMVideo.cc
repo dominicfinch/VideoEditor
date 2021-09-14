@@ -17,11 +17,8 @@ FFMVideo:: FFMVideo() {
 
 FFMVideo::~FFMVideo() {
     avformat_close_input(&_pFormatContext);
+    avformat_free_context(_pFormatContext);
     av_dict_free(&_avOptions);
-
-    av_free(_pVideoStream);
-    av_free(_pAudioCodecContext);
-    av_free(_pSubtitleCodecContext);
 
     avcodec_close(_pVideoCodecContext);
     avcodec_free_context(&_pVideoCodecContext);
@@ -29,11 +26,14 @@ FFMVideo::~FFMVideo() {
     avcodec_close(_pAudioCodecContext);
     avcodec_free_context(&_pAudioCodecContext);
 
+    avcodec_close(_pSubtitleCodecContext);
+    avcodec_free_context(&_pSubtitleCodecContext);
+
     av_frame_free(&_pFrame);
     av_packet_free(&_pPacket);
 
-    avcodec_close(_pSubtitleCodecContext);
-    avcodec_free_context(&_pSubtitleCodecContext);
+    //if(video_dst_data[0])
+    //    av_free(&video_dst_data[0]);
 }
 
 bool FFMVideo::Initialize() {
@@ -54,9 +54,9 @@ bool FFMVideo::LoadMedia(const std::string& inputFile) {
         if(fs::exists(inputFile.c_str())) {
             if(avformat_open_input(&_pFormatContext, inputFile.c_str(), _pInputFormat, &_avOptions) == 0) {
                 if(avformat_find_stream_info(_pFormatContext, nullptr) >= 0) {
-                    auto videoStreamIndex = utils::open_codec_context(_pVideoCodecContext, _pFormatContext, AVMediaType::AVMEDIA_TYPE_VIDEO);
-                    auto audioStreamIndex = utils::open_codec_context(_pAudioCodecContext, _pFormatContext, AVMediaType::AVMEDIA_TYPE_AUDIO);
-                    auto subtitleStreamIndex = utils::open_codec_context(_pSubtitleCodecContext, _pFormatContext, AVMediaType::AVMEDIA_TYPE_SUBTITLE);
+                    auto videoStreamIndex = utils::open_codec_context(&_pVideoCodecContext, _pFormatContext, AVMediaType::AVMEDIA_TYPE_VIDEO);
+                    auto audioStreamIndex = utils::open_codec_context(&_pAudioCodecContext, _pFormatContext, AVMediaType::AVMEDIA_TYPE_AUDIO);
+                    auto subtitleStreamIndex = utils::open_codec_context(&_pSubtitleCodecContext, _pFormatContext, AVMediaType::AVMEDIA_TYPE_SUBTITLE);
 
                     if(videoStreamIndex >= 0) {
                         _pVideoStream = _pFormatContext->streams[videoStreamIndex];
@@ -70,22 +70,19 @@ bool FFMVideo::LoadMedia(const std::string& inputFile) {
                         _pSubtitleStream = _pFormatContext->streams[subtitleStreamIndex];
                     }
 
+                    std::string outputFilepath = "output.mp4";
+
                     while(av_read_frame(_pFormatContext, _pPacket) >= 0) {
-                        // check if the packet belongs to a stream we are interested in, otherwise
-                        // skip it
                         if (_pPacket->stream_index == videoStreamIndex)
-                            ret = utils::decode_packet(_pVideoCodecContext, _pPacket, _pFrame);
+                            ret = utils::decode_packet(outputFilepath, _pVideoCodecContext, _pPacket, _pFrame);
                         else if (_pPacket->stream_index == audioStreamIndex)
-                            ret = utils::decode_packet(_pAudioCodecContext, _pPacket, _pFrame);
+                            ret = utils::decode_packet(outputFilepath, _pAudioCodecContext, _pPacket, _pFrame);
+                        else if(_pPacket->stream_index == subtitleStreamIndex)
+                            ret = utils::decode_packet(outputFilepath, _pSubtitleCodecContext, _pPacket, _pFrame);
                         av_packet_unref(_pPacket);
                         if(ret < 0)
                             break;
                     }
-
-                    if (_pVideoStream)
-                        utils::decode_packet(_pVideoCodecContext, nullptr, nullptr);
-                    if (_pAudioStream)
-                        utils::decode_packet(_pAudioCodecContext, nullptr, nullptr);
 
                     syslog(LOG_INFO, "Successfully loaded stream & info");
                     return true;

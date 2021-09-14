@@ -11,6 +11,7 @@ extern "C" {
     #include <libavcodec/avcodec.h>
     #include <libavutil/file.h>
     #include <libavutil/dict.h>
+    #include <libavutil/imgutils.h>
 };
 #include <string>
 #include <vector>
