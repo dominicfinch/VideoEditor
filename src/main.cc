@@ -13,11 +13,10 @@ int main(int argc, char * argv[]) {
     syslog(LOG_INFO, "Program started by User '%s' (UserId: %d)", getlogin(), getuid());
 
     FFMVideo video;
-
     if(argc > 1) {
         if(video.Initialize()) {
             auto inputFile = argv[1];
-            if(video.LoadFile(inputFile)) {
+            if(video.LoadMedia(inputFile)) {
 
             } else {
                 syslog(LOG_ERR, "Unable to load input file: %s", inputFile);
@@ -26,7 +25,6 @@ int main(int argc, char * argv[]) {
             syslog(LOG_ERR, "Failed to initialize properly");
         }
     }
-
     closelog();
     return 0;
 }

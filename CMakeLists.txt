@@ -14,7 +14,9 @@ set(LINK_LIBRARIES
         -lavcodec
         -lpthread -lstdc++fs)
 
-file(GLOB PROJECT_SOURCES ${PROJECT_SOURCE_DIR}/*.cc)
+file(GLOB PROJECT_SOURCES
+        ${PROJECT_SOURCE_DIR}/**/*.cc
+        ${PROJECT_SOURCE_DIR}/*.cc)
 
 #message(STATUS "PROJECT_SOURCES: ${PROJECT_SOURCES}")
 if("${QT_INCLUDE_PATH}" STREQUAL "")
@@ -31,6 +33,5 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 target_link_libraries(${PROJECT_NAME} ${LINK_LIBRARIES})
 
-
 # Unit Tests
-add_subdirectory(${PROJECT_UNITTEST_DIR})
+# add_subdirectory(${PROJECT_UNITTEST_DIR})

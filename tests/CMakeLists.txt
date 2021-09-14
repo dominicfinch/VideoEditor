@@ -14,7 +14,9 @@ set(LINK_LIBRARIES
         -lcppunit
         -lpthread -lstdc++fs)
 
-file(GLOB PROJECT_SOURCES ${PROJECT_SOURCE_DIR}/*.cc)
+file(GLOB PROJECT_SOURCES
+        ${PROJECT_SOURCE_DIR}/**/*.cc
+        ${PROJECT_SOURCE_DIR}/*.cc)
 
 #message(STATUS "PROJECT_SOURCES: ${PROJECT_SOURCES}")
 if("${QT_INCLUDE_PATH}" STREQUAL "")
