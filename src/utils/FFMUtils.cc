@@ -38,51 +38,42 @@ namespace utils {
         return stream_index;
     }
 
-    int decode_packet(const std::string& filepath, AVCodecContext * dec, const AVPacket * pkt, AVFrame * frame) {
+    int decode_packet(AVCodecContext * dec, const AVPacket * pkt, AVFrame * frame) {
         int ret = 0, decodedPacketCount = 0;
         char err[AV_ERROR_MAX_STRING_SIZE];
 
-        // submit the packet to the decoder
-        ret = avcodec_send_packet(dec, pkt);
-        if (ret < 0) {
-            av_make_error_string(err, AV_ERROR_MAX_STRING_SIZE, ret);
-            syslog(LOG_ERR, "Error submitting a packet for decoding (%s)\n", err);
-            return ret;
-        }
-
-        // get all the available frames from the decoder
-        while (ret >= 0) {
-            ret = avcodec_receive_frame(dec, frame);
+        if(pkt && frame) {
+            // submit the packet to the decoder
+            ret = avcodec_send_packet(dec, pkt);
             if (ret < 0) {
-                if (ret == AVERROR_EOF || ret == AVERROR(EAGAIN))
-                    return 0;
-
                 av_make_error_string(err, AV_ERROR_MAX_STRING_SIZE, ret);
-                syslog(LOG_ERR, "Error getting frames from the decoder: %s", err);
+                syslog(LOG_ERR, "Error submitting a packet for decoding (%s)\n", err);
                 return ret;
             }
 
-            // write the frame data to output file
-            if (dec->codec->type == AVMEDIA_TYPE_VIDEO)
-                ret = output_video_frame(filepath, frame, AVPixelFormat::AV_PIX_FMT_ARGB);
-            //else(dec->codec->type == AVMEDIA_TYPE_AUDIO)
-            //    ret = output_audio_frame(frame);
+            // get all the available frames from the decoder
+            while (ret >= 0) {
+                ret = avcodec_receive_frame(dec, frame);
+                if (ret < 0) {
+                    if (ret == AVERROR_EOF || ret == AVERROR(EAGAIN))
+                        return 0;
 
-            av_frame_unref(frame);
-            if (ret < 0)
-                return ret;
+                    av_make_error_string(err, AV_ERROR_MAX_STRING_SIZE, ret);
+                    syslog(LOG_ERR, "Error getting frames from the decoder: %s", err);
+                    return ret;
+                }
+            }
+            return 0;
+        } else {
+            return -1;
         }
-
-        return 0;
     }
 
     int output_video_frame(const std::string& filepath, AVFrame * frame, enum AVPixelFormat pix_fmt, int height, int width) {
-
         if(frame) {
             FILE * output_file = fopen(filepath.c_str(), "wb");
-
             uint8_t * video_dst_data[4] = { nullptr };
-            int video_dst_linesize[4];
+            int video_dst_linesize[4] = { 0 };
             int video_dst_bufsize = av_image_alloc(video_dst_data, video_dst_linesize, width, height, pix_fmt, 1);
 
             if(video_dst_bufsize > 0) {

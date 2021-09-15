@@ -38,7 +38,10 @@ private:
     AVCodecContext * _pSubtitleCodecContext = nullptr;
 
     AVPacket * _pPacket = nullptr;
-    AVFrame * _pFrame = nullptr;
+    // AVFrame * _pFrame = nullptr;
+    std::vector<AVFrame*> _videoFrames;
+    std::vector<AVFrame*> _audioFrames;
+    std::vector<AVFrame*> _subtitleFrames;
 
     AVDictionary * _avOptions = nullptr;
 };
