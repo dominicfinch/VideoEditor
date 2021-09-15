@@ -13,11 +13,9 @@ extern "C" {
 namespace utils {
     int open_codec_context(AVCodecContext ** dec_ctx, AVFormatContext * fmt_ctx, enum AVMediaType type);
 
-    int decode_packet(AVCodecContext *dec, const AVPacket *pkt, AVFrame * frame);
+    int decode_packet(AVCodecContext *dec, const AVPacket *pkt, AVFrame ** frame);
 
-    int output_video_frame(const std::string& filepath, AVCodecContext * codecContext, AVFrame * frame, int height = 800, int width = 600);
-
-    //int output_audio_frame(const std::string& filepath, AVFrame * frame, int height, int width);
+    int draw_grayscale_image(const std::string& filepath, AVFrame * frame);
 }
 
 

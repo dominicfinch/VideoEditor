@@ -17,6 +17,8 @@ extern "C" {
 #include <vector>
 
 
+
+
 class FFMVideo {
 public:
     FFMVideo();
@@ -24,6 +26,10 @@ public:
 
     bool Initialize();
     bool LoadMedia(const std::string& inputFile);
+
+    const std::vector<AVFrame*>& Video() { return _videoFrames; }
+    const std::vector<AVFrame*>& Audio() { return _audioFrames; }
+    const std::vector<AVFrame*>& Subtitles() { return _subtitleFrames; }
 
 private:
     AVFormatContext * _pFormatContext = nullptr;

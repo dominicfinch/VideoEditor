@@ -1,5 +1,5 @@
 
-#include "utils/FFMUtils.h"
+#include "FFMUtils.h"
 #include <syslog.h>
 
 namespace utils {
@@ -38,7 +38,7 @@ namespace utils {
         return stream_index;
     }
 
-    int decode_packet(AVCodecContext * dec, const AVPacket * pkt, AVFrame * frame) {
+    int decode_packet(AVCodecContext * dec, const AVPacket * pkt, AVFrame ** frame) {
         int ret = 0, decodedPacketCount = 0;
         char err[AV_ERROR_MAX_STRING_SIZE];
 
@@ -52,12 +52,20 @@ namespace utils {
             }
 
             // get all the available frames from the decoder
-            while (ret >= 0) {
-                ret = avcodec_receive_frame(dec, frame);
-                if (ret < 0) {
-                    if (ret == AVERROR_EOF || ret == AVERROR(EAGAIN))
-                        return 0;
+            while(ret >= 0) {
+                ret = avcodec_receive_frame(dec, *frame);
+                if(ret >= 0) {
+                    if(dec->codec->type == AVMEDIA_TYPE_VIDEO) {
+                        return (*frame)->width * (*frame)->height;
+                    } else if(dec->codec->type == AVMEDIA_TYPE_AUDIO) {
+                        return (*frame)->nb_samples;
+                    }
 
+                    if(ret < 0)
+                        return ret;
+                } else {
+                    if(ret == AVERROR_EOF || ret == AVERROR(EAGAIN))
+                        return 0;
                     av_make_error_string(err, AV_ERROR_MAX_STRING_SIZE, ret);
                     syslog(LOG_ERR, "Error getting frames from the decoder: %s", err);
                     return ret;
@@ -69,25 +77,26 @@ namespace utils {
         }
     }
 
-    int output_video_frame(const std::string& filepath, AVCodecContext * codecContext, AVFrame * frame, int height, int width) {
-        if(frame && codecContext) {
-            FILE * output_file = fopen(filepath.c_str(), "wb");
-            uint8_t * video_dst_data[4] = { nullptr };
-            int video_dst_linesize[4] = { 0 };
-            int video_dst_bufsize = av_image_alloc(video_dst_data, video_dst_linesize, width, height, codecContext->pix_fmt, 1);
-
-            if(video_dst_bufsize > 0) {
-                frame->format;
-                av_image_copy(video_dst_data, video_dst_linesize, (const uint8_t **) (frame->data), frame->linesize, codecContext->pix_fmt, width, height);
-                fwrite(video_dst_data[0], 1, video_dst_bufsize, output_file);
+    int draw_grayscale_image(const std::string& filepath, AVFrame * frame) {
+        if(!filepath.empty() && frame) {
+            FILE * outFile = fopen(filepath.c_str(), "w");
+            if(outFile) {
+                fprintf(outFile, "P5\n");
+                fprintf(outFile, "# VideoSoft Grayscale Image\n");
+                fprintf(outFile, "%d %d\n", frame->width, frame->height);
+                fprintf(outFile, "255\n");
+                for(auto i = 0; i < frame->height; i++)
+                    fwrite((int *)(frame->data[0] + i * frame->linesize[0]), 1, frame->width, outFile);
+                fclose(outFile);
+                return 0;
+            } else {
+                syslog(LOG_ERR, "Unable to open output file: %s", filepath.c_str());
+                return -1;
             }
-
-            if(output_file)
-                fclose(output_file);
         } else {
+            syslog(LOG_ERR, "Calling draw_grayscale_image with invalid arguments");
             return -1;
         }
-        return 0;
     }
 
     /*

@@ -6,7 +6,7 @@
 #include <filesystem>
 #include <syslog.h>
 
-#include "utils/FFMUtils.h"
+#include "FFMUtils.h"
 
 namespace fs = std::filesystem;
 
@@ -30,13 +30,16 @@ FFMVideo::~FFMVideo() {
     avcodec_free_context(&_pSubtitleCodecContext);
 
     for(auto frame : _videoFrames)
-        av_frame_free(&frame);
+        if(frame != nullptr)
+            av_frame_free(&frame);
 
     for(auto frame : _audioFrames)
-        av_frame_free(&frame);
+        if(frame != nullptr)
+            av_frame_free(&frame);
 
     for(auto frame : _subtitleFrames)
-        av_frame_free(&frame);
+        if(frame)
+            av_frame_free(&frame);
 
     _videoFrames.clear();
     _audioFrames.clear();
@@ -74,18 +77,36 @@ bool FFMVideo::LoadMedia(const std::string& inputFile) {
 
                     auto packet = av_packet_alloc();
                     while(av_read_frame(_pFormatContext, packet) >= 0) {
+                        auto latestVideo = av_frame_alloc();
+                        auto latestAudio = av_frame_alloc();
+
                         if (packet->stream_index == videoStreamIndex) {
-                            _videoFrames.push_back(av_frame_alloc());
-                            ret = utils::decode_packet(_pVideoCodecContext, packet, _videoFrames.back());
+                            ret = utils::decode_packet(_pVideoCodecContext, packet, &latestVideo);
+                            if(ret >= 0) {
+                                if(ret > 0) {
+                                    _videoFrames.push_back(latestVideo);
+                                } else {
+                                    av_frame_free(&latestVideo);
+                                }
+                            } else {
+                                syslog(LOG_DEBUG, "Unable to decode packet");
+                                av_frame_free(&latestVideo);
+                            }
                         }
                         else if (packet->stream_index == audioStreamIndex) {
-                            _audioFrames.push_back(av_frame_alloc());
-                            ret = utils::decode_packet(_pAudioCodecContext, packet, _audioFrames.back());
+                            ret = utils::decode_packet(_pAudioCodecContext, packet, &latestAudio);
+                            if(ret >= 0) {
+                                if(ret > 0) {
+                                    _audioFrames.push_back(latestAudio);
+                                } else {
+                                    av_frame_free(&latestAudio);
+                                }
+                            } else {
+                                syslog(LOG_DEBUG, "Unable to decode packet");
+                                av_frame_free(&latestAudio);
+                            }
                         }
-                        else if(packet->stream_index == subtitleStreamIndex) {
-                            _subtitleFrames.push_back(av_frame_alloc());
-                            ret = utils::decode_packet(_pSubtitleCodecContext, packet, _subtitleFrames.back());
-                        }
+
                         av_packet_unref(packet);
                         if(ret < 0)
                             break;
@@ -96,10 +117,6 @@ bool FFMVideo::LoadMedia(const std::string& inputFile) {
                     syslog(LOG_DEBUG, "Audio frame stack has %zu entries", _audioFrames.size());
                     syslog(LOG_DEBUG, "Subtitle frame stack has %zu entries", _subtitleFrames.size());
                     syslog(LOG_INFO, "Successfully loaded stream & info");
-
-                    // Try saving the first video frame as an image //
-                    if(_videoFrames.size() > 0)
-                        utils::output_video_frame("output.bmp", _pVideoCodecContext, _videoFrames[0]);
                     return true;
                 } else {
                     syslog(LOG_ERR, "Error getting video info: avformat_find_stream_info failed");

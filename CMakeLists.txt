@@ -1,12 +1,11 @@
-cmake_minimum_required(VERSION 3.16)
 
+cmake_minimum_required(VERSION 3.16)
 project(video-editor)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 set(PROJECT_SOURCE_DIR "./src")
 set(PROJECT_UNITTEST_DIR "./tests")
-
 set(LINK_LIBRARIES
         # FFMpeg Libs
         -lavutil

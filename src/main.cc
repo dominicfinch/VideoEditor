@@ -2,9 +2,13 @@
 
 #include <iostream>
 #include "main.h"
+#include "FFMUtils.h"
 
 #include <unistd.h>
 #include <syslog.h>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 
 int main(int argc, char * argv[]) {
@@ -17,7 +21,26 @@ int main(int argc, char * argv[]) {
         if(video.Initialize()) {
             auto inputFile = argv[1];
             if(video.LoadMedia(inputFile)) {
+                auto v = video.Video();
 
+                std::string outputDir = "./output";
+                if(!fs::exists(outputDir)) {
+                    fs::create_directory(outputDir);
+                }
+
+                for(auto i=0; i<v.size(); i++) {
+                    // Once every 30 frames save a picture
+                    if(i % 25 == 0) {
+                        std::stringstream ss;
+                        ss << outputDir << "/" << "image_" << i << ".pmg";
+                        auto ret = utils::draw_grayscale_image(ss.str(), v[i]);
+                        if(ret <= 0) {
+
+                        }
+
+                        ss.clear();
+                    }
+                }
             } else {
                 syslog(LOG_ERR, "Unable to load input file: %s", inputFile);
             }
