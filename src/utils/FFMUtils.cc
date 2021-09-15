@@ -69,15 +69,16 @@ namespace utils {
         }
     }
 
-    int output_video_frame(const std::string& filepath, AVFrame * frame, enum AVPixelFormat pix_fmt, int height, int width) {
-        if(frame) {
+    int output_video_frame(const std::string& filepath, AVCodecContext * codecContext, AVFrame * frame, int height, int width) {
+        if(frame && codecContext) {
             FILE * output_file = fopen(filepath.c_str(), "wb");
             uint8_t * video_dst_data[4] = { nullptr };
             int video_dst_linesize[4] = { 0 };
-            int video_dst_bufsize = av_image_alloc(video_dst_data, video_dst_linesize, width, height, pix_fmt, 1);
+            int video_dst_bufsize = av_image_alloc(video_dst_data, video_dst_linesize, width, height, codecContext->pix_fmt, 1);
 
             if(video_dst_bufsize > 0) {
-                av_image_copy(video_dst_data, video_dst_linesize, (const uint8_t **) (frame->data), frame->linesize, pix_fmt, width, height);
+                frame->format;
+                av_image_copy(video_dst_data, video_dst_linesize, (const uint8_t **) (frame->data), frame->linesize, codecContext->pix_fmt, width, height);
                 fwrite(video_dst_data[0], 1, video_dst_bufsize, output_file);
             }
 

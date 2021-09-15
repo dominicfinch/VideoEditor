@@ -15,7 +15,7 @@ namespace utils {
 
     int decode_packet(AVCodecContext *dec, const AVPacket *pkt, AVFrame * frame);
 
-    int output_video_frame(const std::string& filepath, AVFrame * frame, enum AVPixelFormat pix_fmt, int height = 800, int width = 600);
+    int output_video_frame(const std::string& filepath, AVCodecContext * codecContext, AVFrame * frame, int height = 800, int width = 600);
 
     //int output_audio_frame(const std::string& filepath, AVFrame * frame, int height, int width);
 }
