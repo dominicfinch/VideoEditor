@@ -16,6 +16,7 @@ extern "C" {
 #include <string>
 #include <deque>
 #include <memory>
+#include <mutex>
 #include "interfaces/ivideo.h"
 
 namespace vsg {
@@ -32,8 +33,8 @@ namespace vsg {
         int Initialize(AVDictionary * settings = nullptr);
         int LoadSource(const std::string& source);
 
-        int SendPacket();
-        int ReceivePacket();
+        int ReadFrame();
+        int DecodeFrame();
         //int SetCurrentFrame(int pts);
 
         AVStream * VideoStream() { return _pVideoStream; }
@@ -42,11 +43,9 @@ namespace vsg {
         AVFormatContext * FormatContext() { return _pFormatContext; }
         AVInputFormat * InputFormat() { return _pInputFormat; }
 
-
-
     protected:
         int Shutdown();
-        int decode_packet(AVCodecContext *dec, const AVPacket *pkt, AVFrame ** frame);
+        int decode_packet(AVCodecContext *dec, const AVPacket *pkt, AVFrame * frame);
 
     private:
 
@@ -59,13 +58,10 @@ namespace vsg {
         AVStream * _pAudioStream = nullptr;
         AVStream * _pSubtitleStream = nullptr;
         int _streamIndexes[3] = {-1, -1, -1};
-        AVPacket * _lastPacket = nullptr;
+
         AVFrame * _lastFrame = nullptr;
-
-        const int _maxFrameBufferSize = 30*60*2;        // 3600 (Assuming: 30 FPS, maximum clip length: 60 seconds and 2 channels - video & audio)
-
-        std::deque<AVPacket*> _packetQueue;
-        std::deque<AVFrame*> _frameBuffer;
+        AVPacket* _lastPacket = nullptr;
+        std::mutex _packetLock;
 
         AVCodecContext * _pVideoCodecContext = nullptr;
         AVCodecContext * _pAudioCodecContext = nullptr;

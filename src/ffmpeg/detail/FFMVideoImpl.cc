@@ -63,6 +63,8 @@ namespace vsg {
             } else {
                 av_dict_set(&_avOptions, "b", "2.5M", 0);
             }
+            _lastFrame = av_frame_alloc();
+            _lastPacket = av_packet_alloc();
             _initialized = true;
         } else {
             syslog(LOG_WARNING, "Attempting to initialize class instance multiple times (%s)", __CLASS_NAME_CSTR__);
@@ -131,123 +133,81 @@ namespace vsg {
         avcodec_close(_pSubtitleCodecContext);
         avcodec_free_context(&_pSubtitleCodecContext);
 
-        if(_lastPacket)
-            av_packet_free(&_lastPacket);
-
-        if(_lastFrame)
-            av_frame_free(&_lastFrame);
-
-        /*
-        for(auto frame : _frameBuffer) {
-            if (frame) {
-                av_frame_free(&frame);
-            }
-        }
-        _frameBuffer.clear();
-         */
-
-
-
+        av_frame_free(&_lastFrame);
+        av_packet_free(&_lastPacket);
         return 0;
     }
 
-    int FFMVideoImpl::SendPacket() {
+    int FFMVideoImpl::ReadFrame() {
         if(_initialized) {
-            if (!_lastPacket)
-                _lastPacket = av_packet_alloc();
-
             int ret = 0;
-            char err[AV_ERROR_MAX_STRING_SIZE];
-
-            if(av_read_frame(_pFormatContext, _lastPacket) == 0) {
-                if(!_lastFrame)
-                    _lastFrame = av_frame_alloc();
-
-                if(_lastPacket->stream_index == _streamIndexes[0]) {
-                    ret = avcodec_send_packet(_pVideoCodecContext, _lastPacket);
-                } else if(_lastPacket->stream_index == _streamIndexes[1]) {
-                    ret = avcodec_send_packet(_pSubtitleCodecContext, _lastPacket);
-                } else if(_lastPacket->stream_index == _streamIndexes[2]) {
-                    ret = avcodec_send_packet(_pVideoCodecContext, _lastPacket);
-                }
-
-                if (ret < 0) {
-                    av_make_error_string(err, AV_ERROR_MAX_STRING_SIZE, ret);
-                    syslog(LOG_ERR, "Error submitting a packet for decoding (%s)\n", err);
-                    return ret;
-                }
-            } else {
-                syslog(LOG_ERR, "Error sending packet");
-                ret = -1;
+            syslog(LOG_DEBUG, "%s::%s", __CLASS_NAME_CSTR__, __METHOD_NAME_CSTR__);
+            _packetLock.lock();
+            while(av_read_frame(_pFormatContext, _lastPacket) >= 0) {
+                av_packet_unref(_lastPacket);
+                if(ret < 0)
+                    break;
             }
-            av_packet_unref(_lastPacket);
+            _packetLock.unlock();
             return ret;
         } else {
             return -1;
         }
     }
 
-    int FFMVideoImpl::ReceivePacket() {
+    int FFMVideoImpl::DecodeFrame() {
         int result = 0;
-        if(_lastPacket && _lastPacket->stream_index == _streamIndexes[0]) {
-            result = decode_packet(_pVideoCodecContext, _lastPacket, &_lastFrame);
-        } else if(_lastPacket && _lastPacket->stream_index == _streamIndexes[1]) {
-            result = decode_packet(_pAudioCodecContext, _lastPacket, &_lastFrame);
-        } else if(_lastPacket && _lastPacket->stream_index == _streamIndexes[2]) {
-            result = decode_packet(_pSubtitleCodecContext, _lastPacket, &_lastFrame);
-        }
+        syslog(LOG_DEBUG, "%s::%s", __CLASS_NAME_CSTR__, __METHOD_NAME_CSTR__);
 
-        if(result >= 0) {
-            // Successfully decoded frame
-            if(result > 0) {
-                if(_frameBuffer.size() >= _maxFrameBufferSize) {
-                    auto numberToRemove = _maxFrameBufferSize - _frameBuffer.size();
-                    for(auto i=0; i<numberToRemove; i++) {
-                        av_frame_free(&_frameBuffer[i]);
-                        _frameBuffer.pop_front();
-                    }
-                }
-                _frameBuffer.push_back(_lastFrame);
-            } else {
-                // Empty Frame
+        if(_lastPacket) {
+            _packetLock.lock();
+            if (_lastPacket->stream_index == _streamIndexes[0]) {
+                result = decode_packet(_pVideoCodecContext, _lastPacket, _lastFrame);
+            } else if (_lastPacket->stream_index == _streamIndexes[1]) {
+                result = decode_packet(_pAudioCodecContext, _lastPacket, _lastFrame);
+            } else if (_lastPacket->stream_index == _streamIndexes[2]) {
+                result = decode_packet(_pSubtitleCodecContext, _lastPacket, _lastFrame);
             }
-        } else {
-            syslog(LOG_DEBUG, "Unable to decode packet");
-            return -1;
-        }
+            _packetLock.unlock();
 
-        if(_lastFrame)
-            av_frame_free(&_lastFrame);
-        return 0;
+            if(result > 0) {
+                // Frame not empty
+            }
+
+            av_frame_unref(_lastFrame);
+            return 0;
+        } else
+            return -1;
     }
 
-
-    int FFMVideoImpl::decode_packet(AVCodecContext * dec, const AVPacket * pkt, AVFrame ** frame) {
+    int FFMVideoImpl::decode_packet(AVCodecContext * dec, const AVPacket * pkt, AVFrame * frame) {
         int ret = 0;
         char err[AV_ERROR_MAX_STRING_SIZE];
 
         if(dec && pkt && frame) {
-            // get all the available frames from the decoder
-            while(ret >= 0) {
-                ret = avcodec_receive_frame(dec, *frame);
-                if(ret >= 0) {
-                    if(dec->codec->type == AVMEDIA_TYPE_VIDEO) {
-                        return (*frame)->width * (*frame)->height;
-                    } else if(dec->codec->type == AVMEDIA_TYPE_AUDIO) {
-                        return (*frame)->nb_samples;
-                    }
+            // submit the packet to the decoder
+            ret = avcodec_send_packet(dec, pkt);
 
-                    if(ret < 0)
-                        return ret;
+            // get all the available frames from the decoder
+            while(ret >=0) {
+                ret = avcodec_receive_frame(dec, frame);
+                if ((ret == AVERROR_EOF) || (ret == AVERROR(EAGAIN)))
+                    return 0;
+
+                if (ret >= 0) {
+                    if (dec->codec->type == AVMEDIA_TYPE_VIDEO) {
+                        return frame->width * frame->height;
+                    } else if (dec->codec->type == AVMEDIA_TYPE_AUDIO) {
+                        return frame->nb_samples;
+                    } else if (dec->codec->type == AVMEDIA_TYPE_SUBTITLE) {
+
+                    }
                 } else {
-                    if(ret == AVERROR_EOF || ret == AVERROR(EAGAIN))
-                        return 0;
                     av_make_error_string(err, AV_ERROR_MAX_STRING_SIZE, ret);
                     syslog(LOG_ERR, "Error getting frames from the decoder: %s", err);
-                    return ret;
                 }
             }
-            return 0;
+            return ret;
         } else {
             return -1;
         }

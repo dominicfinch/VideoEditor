@@ -22,6 +22,14 @@ vsg::VideoEditor::VideoEditor() {
 
 vsg::VideoEditor::~VideoEditor() {
     syslog(LOG_INFO, "Shutting down Video Editor");
+
+    _reading = false;
+    _decoding = false;
+
+    //_frameSenderThread.~thread();
+    //_frameReceiverThread.~thread();
+
+
     if(_ffmVideo)
         delete _ffmVideo;
 
@@ -31,9 +39,11 @@ vsg::VideoEditor::~VideoEditor() {
 
 bool vsg::VideoEditor::Initialize(int argc, char * argv[]) {
     auto errorCount = processArguments(argc, argv);
-    if(errorCount == 0)
+    if(errorCount == 0) {
         _initialized = true;
-    return _initialized;
+        return _initialized;
+    } else
+        return false;
 }
 
 int vsg::VideoEditor::processArguments(int argc, char * argv[]) {
@@ -111,11 +121,35 @@ int vsg::VideoEditor::Exec() {
             if(_ffmVideo->Wrapper()->Initialize() >= 0) {
                 auto ret = _ffmVideo->Wrapper()->LoadSource(_params.inputFilepath.toStdString());
                 if (ret >= 0) {
-                    syslog(LOG_INFO, "Successfully loaded source using FFMPEG library");
+                    syslog(LOG_INFO, "Successfully loaded source (%s) using FFMPEG library", _params.inputFilepath.toStdString().c_str());
                 }
             } else {
                 syslog(LOG_ERR, "FFMPEG Video Wrapper failed to initialize correctly");
             }
+
+            _reading = true;
+            _readingLambda = [this]() {
+                if(_ffmVideo) {
+                    do {
+                        _ffmVideo->Wrapper()->ReadFrame();
+                    } while (_reading);
+                }
+            };
+
+            _decoding = true;
+            _decodingLambda = [this]() {
+                if(_ffmVideo) {
+                    do {
+                        _ffmVideo->Wrapper()->DecodeFrame();
+                    } while(_decoding);
+                }
+            };
+
+            _frameDecoderThread = std::thread(_decodingLambda);
+            _frameReaderThread = std::thread(_readingLambda);
+
+            _frameDecoderThread.detach();
+            _frameReaderThread.detach();
         }
 
         if(_gsVideo) {
@@ -129,6 +163,7 @@ int vsg::VideoEditor::Exec() {
             }
         }
 
+        std::this_thread::sleep_for(std::chrono::seconds(10));
     } else {
         syslog(LOG_ERR, "Editor must be initialized before it is used");
     }

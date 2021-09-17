@@ -49,9 +49,12 @@ namespace vsg {
         VideoEditorParams _params;
         bool _initialized = false;
 
-        std::thread _frameSenderPool;
-        std::thread _frameReceiverPool;
-        std::thread _frameBufferPool;
+        std::thread _frameReaderThread;
+        std::thread _frameDecoderThread;
+        bool _reading = false, _decoding = false;
+
+        std::function<void()> _decodingLambda;
+        std::function<void()> _readingLambda;
 
         //std::shared_ptr<EventListener> _eventListener = nullptr;
         //std::shared_ptr<EventEmitter> _eventEmitter = nullptr;
