@@ -6,6 +6,15 @@
 #define VIDEO_MANIPULATION_MAIN_H
 
 #include "constants.h"
-#include "FFMVideo.h"
+#include "vsg/VideoEditor.h"
+
+#include <iostream>
+#include <unistd.h>
+#include <syslog.h>
+#include <filesystem>
+#include <signal.h>
+
+#include <QtWidgets/QApplication>
+#include <QtCore/QCommandLineParser>
 
 #endif //VIDEO_MANIPULATION_MAIN_H

@@ -1,53 +1,53 @@
 
-
-#include <iostream>
 #include "main.h"
-#include "FFMUtils.h"
-
-#include <unistd.h>
-#include <syslog.h>
-#include <filesystem>
 
 namespace fs = std::filesystem;
 
+vsg::VideoEditor * videoEditor = nullptr;
+
+void Shutdown() {
+    if(videoEditor) {
+        delete videoEditor;
+    }
+    closelog();
+}
+
+void handle_sigint(int sig) {
+    Shutdown();
+}
+
+void handle_sigquit(int sig) {
+    Shutdown();
+}
+
+void handle_sigabort(int sig) {
+    Shutdown();
+}
+
 
 int main(int argc, char * argv[]) {
+    signal(SIGINT, handle_sigint);
+    signal(SIGQUIT, handle_sigquit);
+    signal(SIGABRT, handle_sigabort);
+
     setlogmask(LOG_UPTO(LOG_DEBUG));
     openlog(PROJECT_SYSLOG_TAG, LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL0);
     syslog(LOG_INFO, "Program started by User '%s' (UserId: %d)", getlogin(), getuid());
 
-    FFMVideo video;
-    if(argc > 1) {
-        if(video.Initialize()) {
-            auto inputFile = argv[1];
-            if(video.LoadMedia(inputFile)) {
-                auto v = video.Video();
+    int execResult = 0;
 
-                std::string outputDir = "./output";
-                if(!fs::exists(outputDir)) {
-                    fs::create_directory(outputDir);
-                }
+    QApplication app(argc, argv);
+    QApplication::setApplicationName(PROJECT_NAME);
+    QApplication::setApplicationVersion(PROJECT_VERSION);
 
-                for(auto i=0; i<v.size(); i++) {
-                    // Once every 30 frames save a picture
-                    if(i % 25 == 0) {
-                        std::stringstream ss;
-                        ss << outputDir << "/" << "image_" << i << ".pmg";
-                        auto ret = utils::draw_grayscale_image(ss.str(), v[i]);
-                        if(ret <= 0) {
-
-                        }
-
-                        ss.clear();
-                    }
-                }
-            } else {
-                syslog(LOG_ERR, "Unable to load input file: %s", inputFile);
-            }
-        } else {
-            syslog(LOG_ERR, "Failed to initialize properly");
-        }
+    videoEditor = new vsg::VideoEditor;
+    if(videoEditor->Initialize(app.arguments())) {
+        syslog(LOG_INFO, "Successfully initialized Video Editor");
+        execResult = videoEditor->Exec();
+    } else {
+        syslog(LOG_ERR, "Error during initialization of Video Editor. Shutting down...");
     }
-    closelog();
-    return 0;
+
+    Shutdown();
+    return execResult;
 }
