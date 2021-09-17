@@ -151,60 +151,68 @@ namespace vsg {
             if (!_lastPacket)
                 _lastPacket = av_packet_alloc();
 
-            if (av_read_frame(_pFormatContext, _lastPacket) == 0) {
+            int ret = 0;
+            char err[AV_ERROR_MAX_STRING_SIZE];
+
+            if(av_read_frame(_pFormatContext, _lastPacket) == 0) {
                 if(!_lastFrame)
                     _lastFrame = av_frame_alloc();
 
-                /*
                 if(_lastPacket->stream_index == _streamIndexes[0]) {
-
+                    ret = avcodec_send_packet(_pVideoCodecContext, _lastPacket);
                 } else if(_lastPacket->stream_index == _streamIndexes[1]) {
-
+                    ret = avcodec_send_packet(_pSubtitleCodecContext, _lastPacket);
                 } else if(_lastPacket->stream_index == _streamIndexes[2]) {
-
+                    ret = avcodec_send_packet(_pVideoCodecContext, _lastPacket);
                 }
-                 */
+
+                if (ret < 0) {
+                    av_make_error_string(err, AV_ERROR_MAX_STRING_SIZE, ret);
+                    syslog(LOG_ERR, "Error submitting a packet for decoding (%s)\n", err);
+                    return ret;
+                }
             } else {
                 syslog(LOG_ERR, "Error sending packet");
+                ret = -1;
             }
             av_packet_unref(_lastPacket);
-            return 0;
+            return ret;
         } else {
             return -1;
         }
     }
 
     int FFMVideoImpl::ReceivePacket() {
-        if(!_lastFrame)
-            _lastFrame = av_frame_alloc();
-
+        int result = 0;
         if(_lastPacket && _lastPacket->stream_index == _streamIndexes[0]) {
-            // Video Packets
-            auto ret = decode_packet(_pVideoCodecContext, _lastPacket, &_lastFrame);
-            if(ret >= 0) {
-                // Successfully decoded frame
-                if(ret > 0) {
-                    if(_frameBuffer.size() >= _maxFrameBufferSize) {
-                        auto numberToRemove = _maxFrameBufferSize - _frameBuffer.size();
-                        for(auto i=0; i<numberToRemove; i++) {
-                            av_frame_free(&_frameBuffer[i]);
-                            _frameBuffer.pop_front();
-                        }
-                    }
-                    _frameBuffer.push_back(_lastFrame);
-                } else {
-                    // Empty Frame
-                }
-            } else {
-                syslog(LOG_DEBUG, "Unable to decode packet");
-            }
-            av_frame_free(&_lastFrame);
+            result = decode_packet(_pVideoCodecContext, _lastPacket, &_lastFrame);
         } else if(_lastPacket && _lastPacket->stream_index == _streamIndexes[1]) {
-            // Audio Frames
+            result = decode_packet(_pAudioCodecContext, _lastPacket, &_lastFrame);
         } else if(_lastPacket && _lastPacket->stream_index == _streamIndexes[2]) {
-            // Subtitle Frames
+            result = decode_packet(_pSubtitleCodecContext, _lastPacket, &_lastFrame);
         }
 
+        if(result >= 0) {
+            // Successfully decoded frame
+            if(result > 0) {
+                if(_frameBuffer.size() >= _maxFrameBufferSize) {
+                    auto numberToRemove = _maxFrameBufferSize - _frameBuffer.size();
+                    for(auto i=0; i<numberToRemove; i++) {
+                        av_frame_free(&_frameBuffer[i]);
+                        _frameBuffer.pop_front();
+                    }
+                }
+                _frameBuffer.push_back(_lastFrame);
+            } else {
+                // Empty Frame
+            }
+        } else {
+            syslog(LOG_DEBUG, "Unable to decode packet");
+            return -1;
+        }
+
+        if(_lastFrame)
+            av_frame_free(&_lastFrame);
         return 0;
     }
 
@@ -214,14 +222,6 @@ namespace vsg {
         char err[AV_ERROR_MAX_STRING_SIZE];
 
         if(dec && pkt && frame) {
-            // submit the packet to the decoder
-            ret = avcodec_send_packet(dec, pkt);
-            if (ret < 0) {
-                av_make_error_string(err, AV_ERROR_MAX_STRING_SIZE, ret);
-                syslog(LOG_ERR, "Error submitting a packet for decoding (%s)\n", err);
-                return ret;
-            }
-
             // get all the available frames from the decoder
             while(ret >= 0) {
                 ret = avcodec_receive_frame(dec, *frame);

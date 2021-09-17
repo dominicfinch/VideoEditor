@@ -43,7 +43,6 @@ namespace vsg {
 
     protected:
         int Shutdown();
-
         int decode_packet(AVCodecContext *dec, const AVPacket *pkt, AVFrame ** frame);
 
     private:
