@@ -41,7 +41,7 @@ int main(int argc, char * argv[]) {
     QApplication::setApplicationVersion(PROJECT_VERSION);
 
     videoEditor = new vsg::VideoEditor;
-    if(videoEditor->Initialize(app.arguments())) {
+    if(videoEditor->Initialize(argc, argv)) {
         syslog(LOG_INFO, "Successfully initialized Video Editor");
         execResult = videoEditor->Exec();
     } else {

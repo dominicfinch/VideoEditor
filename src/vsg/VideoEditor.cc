@@ -29,16 +29,19 @@ vsg::VideoEditor::~VideoEditor() {
         delete _gsVideo;
 }
 
-bool vsg::VideoEditor::Initialize(const QStringList& args) {
-    auto errorCount = processArguments(args);
+bool vsg::VideoEditor::Initialize(int argc, char * argv[]) {
+    auto errorCount = processArguments(argc, argv);
     if(errorCount == 0)
         _initialized = true;
     return _initialized;
 }
 
-int vsg::VideoEditor::processArguments(const QStringList &args) {
-    int errorCount = (_parser.parse(args) ? 0 : 1);
+int vsg::VideoEditor::processArguments(int argc, char * argv[]) {
+    QStringList args;
+    for(auto i=0; i<argc; i++)
+        args.push_back(argv[i]);
 
+    int errorCount = (_parser.parse(args) ? 0 : 1);
     if(errorCount == 0) {
         if(_parser.isSet("help")) {
             _parser.showHelp();
@@ -100,16 +103,29 @@ int vsg::VideoEditor::Exec() {
     if(_initialized) {
         switch(Configuration().library) {
             case SupportedVideoLibraries::FFMpeg: _ffmVideo = new FFMVideo(); break;
-            //case SupportedVideoLibraries::GStreamer: _gsVideo = new GSVideoManager(); break;
-            default: _gsVideo = new GSVideo(); break;
+            case SupportedVideoLibraries::GStreamer: _gsVideo = new GSVideo(); break;
+            default: _ffmVideo = new FFMVideo(); break;
         }
 
         if(_ffmVideo) {
-            if(_ffmVideo->Wrapper()->Initialize()) {
+            if(_ffmVideo->Wrapper()->Initialize() >= 0) {
                 auto ret = _ffmVideo->Wrapper()->LoadSource(_params.inputFilepath.toStdString());
                 if (ret >= 0) {
                     syslog(LOG_INFO, "Successfully loaded source using FFMPEG library");
                 }
+            } else {
+                syslog(LOG_ERR, "FFMPEG Video Wrapper failed to initialize correctly");
+            }
+        }
+
+        if(_gsVideo) {
+            if(_gsVideo->Wrapper()->Initialize(_argc, _argv) >= 0) {
+                auto ret = _gsVideo->Wrapper()->LoadSource(_params.inputFilepath.toStdString());
+                if(ret >= 0) {
+                    syslog(LOG_INFO, "Successfully loaded source using GStreamer library");
+                }
+            } else {
+                syslog(LOG_ERR, "GStreamer Video Wrapper failed to initialize correctly");
             }
         }
 

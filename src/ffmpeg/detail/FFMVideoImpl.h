@@ -15,6 +15,7 @@ extern "C" {
 };
 #include <string>
 #include <deque>
+#include <memory>
 #include "interfaces/ivideo.h"
 
 namespace vsg {
@@ -41,6 +42,8 @@ namespace vsg {
         AVFormatContext * FormatContext() { return _pFormatContext; }
         AVInputFormat * InputFormat() { return _pInputFormat; }
 
+
+
     protected:
         int Shutdown();
         int decode_packet(AVCodecContext *dec, const AVPacket *pkt, AVFrame ** frame);
@@ -60,6 +63,8 @@ namespace vsg {
         AVFrame * _lastFrame = nullptr;
 
         const int _maxFrameBufferSize = 30*60*2;        // 3600 (Assuming: 30 FPS, maximum clip length: 60 seconds and 2 channels - video & audio)
+
+        std::deque<AVPacket*> _packetQueue;
         std::deque<AVFrame*> _frameBuffer;
 
         AVCodecContext * _pVideoCodecContext = nullptr;

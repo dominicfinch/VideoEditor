@@ -6,6 +6,7 @@
 #define VIDEO_EDITOR_GSVIDEOIMPL_H
 
 #include <gst/gst.h>
+#include <string>
 
 namespace vsg {
     class GSVideoImpl {
@@ -13,8 +14,13 @@ namespace vsg {
         GSVideoImpl();
         ~GSVideoImpl();
 
-    private:
+        int Initialize(int argc, char * argv[]);
+        int LoadSource(const std::string& source);
 
+    private:
+        GstElement * _pipeline = nullptr;
+        GstBus * _bus = nullptr;
+        bool _initialized = false;
     };
 }
 

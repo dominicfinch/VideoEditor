@@ -137,12 +137,17 @@ namespace vsg {
         if(_lastFrame)
             av_frame_free(&_lastFrame);
 
+        /*
         for(auto frame : _frameBuffer) {
             if (frame) {
                 av_frame_free(&frame);
             }
         }
-        _frameBuffer.size();
+        _frameBuffer.clear();
+         */
+
+
+
         return 0;
     }
 

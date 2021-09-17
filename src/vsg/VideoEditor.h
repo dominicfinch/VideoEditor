@@ -33,14 +33,17 @@ namespace vsg {
         VideoEditor();
         ~VideoEditor();
 
-        bool Initialize(const QStringList& args);
+        bool Initialize(int argc, char * argv[]);
         const VideoEditorParams& Configuration() { return _params; }
         int Exec();
 
     private:
         vsg::FFMVideo * _ffmVideo = nullptr;
         vsg::GSVideo * _gsVideo = nullptr;
-        int processArguments(const QStringList& args);
+        int processArguments(int argc, char * argv[]);
+
+        int _argc;
+        char ** _argv;
 
         QCommandLineParser _parser;
         VideoEditorParams _params;

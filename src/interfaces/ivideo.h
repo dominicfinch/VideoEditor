@@ -10,15 +10,12 @@ namespace vsg {
     class IVideo {
     public:
         IVideo(): _video(new VideoWrapper) {}
-        ~IVideo() { Shutdown(); }
-
-        VideoWrapper * Wrapper() { return _video; }
-
-        int Shutdown() {
+        ~IVideo() {
             if(_video)
                 delete _video;
-            return 0;
         }
+
+        VideoWrapper * Wrapper() { return _video; }
 
     protected:
         VideoWrapper * _video = nullptr;

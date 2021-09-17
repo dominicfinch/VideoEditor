@@ -10,6 +10,6 @@ namespace vsg {
     }
 
     FFMVideo::~FFMVideo() {
-        IVideo::Shutdown();
+
     }
 }
