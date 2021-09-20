@@ -122,48 +122,54 @@ int vsg::VideoEditor::Exec() {
                 auto ret = _ffmVideo->Wrapper()->LoadSource(_params.inputFilepath.toStdString());
                 if (ret >= 0) {
                     syslog(LOG_INFO, "Successfully loaded source (%s) using FFMPEG library", _params.inputFilepath.toStdString().c_str());
+
+                    // TODO: Wrap thread handling into threadpool class to ensure proper thread management
+                    _reading = true;
+                    _readingLambda = [this]() {
+                        if(_ffmVideo) {
+                            syslog(LOG_DEBUG, "Executing frame reading thread...");
+                            while(_reading)
+                                _ffmVideo->Wrapper()->ReadFrame();
+                            syslog(LOG_DEBUG, "Exiting frame reading thread...");
+                        }
+                    };
+
+                    _decoding = true;
+                    _decodingLambda = [this]() {
+                        if(_ffmVideo) {
+                            syslog(LOG_DEBUG, "Executing Frame decoding thread...");
+                            while(_decoding)
+                                _ffmVideo->Wrapper()->DecodeFrame();
+                            syslog(LOG_DEBUG, "Exiting frame decoding thread...");
+                        }
+                    };
+
+                    _frameDecoderThread = std::thread(_decodingLambda);
+                    _frameReaderThread = std::thread(_readingLambda);
+
+                    _frameDecoderThread.detach();
+                    _frameReaderThread.detach();
                 }
             } else {
                 syslog(LOG_ERR, "FFMPEG Video Wrapper failed to initialize correctly");
             }
-
-            _reading = true;
-            _readingLambda = [this]() {
-                if(_ffmVideo) {
-                    do {
-                        _ffmVideo->Wrapper()->ReadFrame();
-                    } while (_reading);
-                }
-            };
-
-            _decoding = true;
-            _decodingLambda = [this]() {
-                if(_ffmVideo) {
-                    do {
-                        _ffmVideo->Wrapper()->DecodeFrame();
-                    } while(_decoding);
-                }
-            };
-
-            _frameDecoderThread = std::thread(_decodingLambda);
-            _frameReaderThread = std::thread(_readingLambda);
-
-            _frameDecoderThread.detach();
-            _frameReaderThread.detach();
         }
 
         if(_gsVideo) {
             if(_gsVideo->Wrapper()->Initialize(_argc, _argv) >= 0) {
                 auto ret = _gsVideo->Wrapper()->LoadSource(_params.inputFilepath.toStdString());
                 if(ret >= 0) {
+
                     syslog(LOG_INFO, "Successfully loaded source using GStreamer library");
+                } else {
+                    syslog(LOG_ERR, "Unable to load source using GStreamer library. Unable to continue");
                 }
             } else {
                 syslog(LOG_ERR, "GStreamer Video Wrapper failed to initialize correctly");
             }
         }
 
-        std::this_thread::sleep_for(std::chrono::seconds(10));
+        std::this_thread::sleep_for(std::chrono::seconds(5));
     } else {
         syslog(LOG_ERR, "Editor must be initialized before it is used");
     }

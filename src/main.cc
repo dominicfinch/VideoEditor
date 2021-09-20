@@ -48,6 +48,6 @@ int main(int argc, char * argv[]) {
         syslog(LOG_ERR, "Error during initialization of Video Editor. Shutting down...");
     }
 
-    Shutdown();
+    //Shutdown();
     return execResult;
 }

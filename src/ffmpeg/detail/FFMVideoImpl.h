@@ -60,7 +60,7 @@ namespace vsg {
         int _streamIndexes[3] = {-1, -1, -1};
 
         AVFrame * _lastFrame = nullptr;
-        AVPacket* _lastPacket = nullptr;
+        AVPacket * _lastPacket = nullptr;
         std::mutex _packetLock;
 
         AVCodecContext * _pVideoCodecContext = nullptr;

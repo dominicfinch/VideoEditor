@@ -11,7 +11,9 @@ set(LINK_LIBRARIES
         -lavformat
         -lavcodec
         #-lx264
-        -lgstreamer
+        -lgstreamer-1.0
+        -lgobject-2.0
+        -lglib-2.0
         -lQt5Core
         -lQt5Widgets
         -lpthread -lstdc++fs)

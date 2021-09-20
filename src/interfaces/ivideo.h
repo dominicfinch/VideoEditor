@@ -5,6 +5,8 @@
 #ifndef VIDEO_EDITOR_IVIDEO_H
 #define VIDEO_EDITOR_IVIDEO_H
 
+#include <vector>
+
 namespace vsg {
     template <class VideoWrapper>
     class IVideo {
@@ -19,6 +21,7 @@ namespace vsg {
 
     protected:
         VideoWrapper * _video = nullptr;
+
     };
 }
 
